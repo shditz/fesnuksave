@@ -1,5 +1,6 @@
+// app/page.js - Optimized frontend
 "use client";
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
 import DownloadResult from "./components/result/fbresult";
 import WhyUseFesnukSave from "./components/explanation/fbexplanation";
 import FacebookGuide from "./components/guide/fbguide";
@@ -10,49 +11,74 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handlePaste = async () => {
+  const isValidUrl = useMemo(() => {
+    const fbRegex = /^(https?:\/\/)?(www\.|m\.|mobile\.)?facebook\.com\/.*/i;
+    return url && fbRegex.test(url);
+  }, [url]);
+
+  const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
       setUrl(text);
+      setError("");
     } catch (err) {
       setError("Gagal membaca clipboard. Pastikan Anda memberikan izin akses.");
     }
-  };
+  }, []);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError("");
-    setResult(null);
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
 
-    try {
-      const response = await fetch("/api/downloadfb", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
+      if (!isValidUrl) {
+        setError("URL Facebook tidak valid");
+        return;
+      }
 
-      const data = await response.json();
+      setLoading(true);
+      setError("");
+      setResult(null);
 
-      if (!response.ok) throw new Error(data.error || "Gagal memproses video");
-      if (!data.url) throw new Error("Tidak ada video yang tersedia");
+      try {
+        const timeoutId = setTimeout(() => {
+          setError("Request timeout. Silakan coba lagi.");
+          setLoading(false);
+        }, 20000);
 
-      setResult({
-        title: data.title,
-        thumbnail: data.thumbnail,
-        url: data.url,
-      });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const resetForm = () => {
+        const response = await fetch("/api/downloadfb", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+
+        clearTimeout(timeoutId);
+        const data = await response.json();
+
+        if (!response.ok)
+          throw new Error(data.error || "Gagal memproses video");
+        if (!data.url) throw new Error("Tidak ada video yang tersedia");
+
+        setResult({
+          title: data.title,
+          thumbnail: data.thumbnail,
+          url: data.url,
+        });
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          setError(err.message);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [url, isValidUrl]
+  );
+
+  const resetForm = useCallback(() => {
     setResult(null);
     setError("");
     setUrl("");
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white py-12 px-4 sm:px-6 lg:px-8">
@@ -69,7 +95,6 @@ export default function Home() {
         {!result && (
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <div className="flex items-center mb-2"></div>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -93,7 +118,11 @@ export default function Home() {
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder="Tempel URL video Facebook"
                     required
-                    className="w-full pl-10 pr-10 py-3 border border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                    className={`w-full pl-10 pr-10 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 transition ${
+                      url && !isValidUrl
+                        ? "border-red-300 focus:border-red-500"
+                        : "border-purple-200 focus:border-purple-500"
+                    }`}
                   />
                   <button
                     type="button"
@@ -119,12 +148,12 @@ export default function Home() {
                 </div>
                 <button
                   type="submit"
-                  disabled={loading}
-                  className={`flex-shrink-0 py-3 px-4 rounded-xl text-white font-bold shadow-lg flex items-center ${
-                    loading
-                      ? "bg-gray-400"
-                      : "bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800"
-                  } transition-all duration-300 transform hover:scale-[1.02]`}
+                  disabled={loading || !isValidUrl}
+                  className={`flex-shrink-0 py-3 px-4 rounded-xl text-white font-bold shadow-lg flex items-center transition-all duration-300 ${
+                    loading || !isValidUrl
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800 transform hover:scale-[1.02]"
+                  }`}
                   title="Download video"
                 >
                   {loading ? (
@@ -203,6 +232,7 @@ export default function Home() {
           </div>
         )}
       </div>
+
       <div className="max-w-6xl mx-auto mb-6 mt-6 border-purple-200 border-t"></div>
       <section>
         <WhyUseFesnukSave />
