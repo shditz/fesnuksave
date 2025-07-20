@@ -1,43 +1,36 @@
 import { NextResponse } from "next/server";
+import ffmpeg from "fluent-ffmpeg";
+import stream from "stream";
+import { promisify } from "util";
+import axios from "axios";
 
-export async function POST(req) {
+export async function POST(request) {
+  const { videoUrl } = await request.json();
+
   try {
-    const { videoUrl, title } = await req.json();
+    const videoResponse = await axios.get(videoUrl, { responseType: "stream" });
 
-    if (!videoUrl) {
-      return NextResponse.json(
-        { error: "URL video diperlukan" },
-        { status: 400 }
-      );
-    }
+    const pipeline = promisify(stream.pipeline);
+    const transformStream = new stream.PassThrough();
 
-    const videoResponse = await fetch(videoUrl, {
+    ffmpeg(videoResponse.data)
+      .audioCodec("libmp3lame")
+      .format("mp3")
+      .on("error", (err) => {
+        console.error("FFmpeg error:", err);
+        transformStream.destroy(err);
+      })
+      .pipe(transformStream, { end: true });
+
+    return new NextResponse(transformStream, {
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        Accept: "*/*",
-        "Accept-Encoding": "identity",
+        "Content-Type": "audio/mpeg",
+        "Content-Disposition": 'attachment; filename="converted.mp3"',
       },
     });
-
-    if (!videoResponse.ok) {
-      throw new Error("Gagal mengunduh video");
-    }
-
-    const videoBuffer = await videoResponse.arrayBuffer();
-
-    const base64Video = Buffer.from(videoBuffer).toString("base64");
-
-    return NextResponse.json({
-      success: true,
-      videoData: base64Video,
-      title: title || "audio",
-      mimeType: videoResponse.headers.get("content-type") || "video/mp4",
-    });
   } catch (error) {
-    console.error("Conversion error:", error);
     return NextResponse.json(
-      { error: `Gagal konversi: ${error.message}` },
+      { error: "Konversi gagal: " + error.message },
       { status: 500 }
     );
   }

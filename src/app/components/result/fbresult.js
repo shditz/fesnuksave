@@ -1,3 +1,5 @@
+//app/components/result/fbresult.js
+
 import { useState } from "react";
 
 export default function DownloadResult({ result }) {
@@ -138,31 +140,33 @@ export default function DownloadResult({ result }) {
     setConversionProgress(0);
 
     try {
-      const response = await fetch(
-        `/api/proxy?url=${encodeURIComponent(result.url)}`
-      );
-      if (!response.ok) throw new Error("Gagal mengunduh video");
+      const response = await fetch("/api/mp3", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoUrl: result.url }),
+      });
 
-      const videoBlob = await response.blob();
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error);
+      }
 
-      const audioBuffer = await extractAudioFromVideo(videoBlob);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
 
-      const mp3Blob = await convertAudioBufferToMp3(audioBuffer);
-
-      const url = URL.createObjectURL(mp3Blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `fesnuksave-audio_${code()}.mp3`;
+      a.download = `FesnukSave-Ditz_${code()}.mp3`;
       document.body.appendChild(a);
       a.click();
+
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("MP3 conversion failed:", error);
-      alert(`Gagal mengkonversi ke MP3: ${error.message}`);
+      alert(`Gagal mengkonversi: ${error.message}`);
     } finally {
       setAudioLoading(false);
-      setConversionProgress(0);
     }
   };
 
@@ -211,9 +215,7 @@ export default function DownloadResult({ result }) {
 
       <div className="space-y-3">
         <button
-          onClick={() =>
-            handleDownload(`fesnuksave-web_${code()}_hd-video.mp4`)
-          }
+          onClick={() => handleDownload(`FesnukSave-Ditz_${code()}_HD`)}
           disabled={videoLoading || audioLoading}
           className="w-full py-3.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-700 text-white font-bold rounded-xl shadow-lg hover:from-purple-700 hover:to-indigo-800 transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
         >
