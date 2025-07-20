@@ -2,8 +2,9 @@ import { useState } from "react";
 
 export default function DownloadResult({ result }) {
   const [videoError, setVideoError] = useState(false);
-  const [audioLoading, setAudioLoading] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(false);
+
   const code = () => {
     const chars =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -13,24 +14,22 @@ export default function DownloadResult({ result }) {
     }
     return result;
   };
+
   const handleDownload = async (filename) => {
     setVideoLoading(true);
     try {
       const proxyUrl = `/api/proxy?url=${encodeURIComponent(
         result.url
       )}&title=${encodeURIComponent(filename)}`;
-
       const response = await fetch(proxyUrl);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = url;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Download failed:", error);
@@ -40,40 +39,144 @@ export default function DownloadResult({ result }) {
     }
   };
 
-  const handleMp3Download = async () => {
-    setAudioLoading(true);
+  const extractAudioToMp3 = async (videoBlob) => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement("video");
+      video.src = URL.createObjectURL(videoBlob);
+      video.crossOrigin = "anonymous";
 
-    try {
-      const response = await fetch("/api/mp3", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          videoUrl: result.url,
-          title: result.title,
-        }),
+      video.addEventListener("loadedmetadata", async () => {
+        try {
+          const audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
+          const source = audioContext.createMediaElementSource(video);
+          const destination = audioContext.createMediaStreamDestination();
+
+          source.connect(destination);
+          source.connect(audioContext.destination);
+
+          const mediaRecorder = new MediaRecorder(destination.stream, {
+            mimeType: "audio/webm;codecs=opus",
+          });
+
+          const audioChunks = [];
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              audioChunks.push(event.data);
+            }
+          };
+
+          mediaRecorder.onstop = async () => {
+            const webmBlob = new Blob(audioChunks, { type: "audio/webm" });
+
+            try {
+              const mp3Blob = await convertWebmToMp3(webmBlob);
+              resolve(mp3Blob);
+            } catch (conversionError) {
+              console.warn("MP3 conversion failed, falling back to WebM");
+              resolve(webmBlob);
+            }
+
+            audioContext.close();
+            URL.revokeObjectURL(video.src);
+          };
+
+          mediaRecorder.start();
+
+          await video.play();
+
+          video.addEventListener("ended", () => {
+            mediaRecorder.stop();
+          });
+        } catch (error) {
+          reject(error);
+        }
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Gagal mengkonversi audio");
-      }
+      video.addEventListener("error", (error) => {
+        reject(new Error("Gagal memuat video untuk ekstraksi audio"));
+      });
+    });
+  };
 
-      const audioBlob = await response.blob();
+  const convertWebmToMp3 = async (webmBlob) => {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src =
+        "https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js";
+      script.onload = async () => {
+        try {
+          const arrayBuffer = await webmBlob.arrayBuffer();
+          const audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+          const samples = audioBuffer.getChannelData(0);
+          const sampleRate = audioBuffer.sampleRate;
+
+          const int16Samples = new Int16Array(samples.length);
+          for (let i = 0; i < samples.length; i++) {
+            int16Samples[i] = Math.max(-1, Math.min(1, samples[i])) * 0x7fff;
+          }
+
+          const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
+          const mp3Data = [];
+
+          const sampleBlockSize = 1152;
+          for (let i = 0; i < int16Samples.length; i += sampleBlockSize) {
+            const sampleChunk = int16Samples.subarray(i, i + sampleBlockSize);
+            const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+            if (mp3buf.length > 0) {
+              mp3Data.push(mp3buf);
+            }
+          }
+
+          const mp3buf = mp3encoder.flush();
+          if (mp3buf.length > 0) {
+            mp3Data.push(mp3buf);
+          }
+
+          const mp3Blob = new Blob(mp3Data, { type: "audio/mp3" });
+          resolve(mp3Blob);
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      script.onerror = () => {
+        reject(new Error("Gagal memuat library MP3 encoder"));
+      };
+
+      document.head.appendChild(script);
+    });
+  };
+
+  const handleMp3Download = async () => {
+    setAudioLoading(true);
+    try {
+      const response = await fetch(
+        `/api/proxy?url=${encodeURIComponent(result.url)}`
+      );
+      if (!response.ok) throw new Error("Gagal mengunduh video");
+
+      const videoBlob = await response.blob();
+
+      const audioBlob = await extractAudioToMp3(videoBlob);
+
+      const fileExtension = audioBlob.type.includes("mp3") ? "mp3" : "webm";
+
       const url = URL.createObjectURL(audioBlob);
-
       const a = document.createElement("a");
       a.href = url;
-      a.download = `fesnuksave-web_${code()}_mp3convert`;
+      a.download = `fesnuksave-audio_${code()}.${fileExtension}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("MP3 conversion failed:", error);
-      alert(`Gagal mengkonversi ke MP3: ${error.message}`);
+      console.error("Audio extraction failed:", error);
+      alert(`Gagal mengekstrak audio: ${error.message}`);
     } finally {
       setAudioLoading(false);
     }
@@ -85,7 +188,6 @@ export default function DownloadResult({ result }) {
         <h3 className="text-lg font-semibold text-gray-800 mb-3 line-clamp-2">
           {result.title}
         </h3>
-
         <div className="aspect-video rounded-xl overflow-hidden bg-gradient-to-br from-purple-50 to-gray-100 border border-purple-100 mb-4">
           {!videoError ? (
             <video
@@ -125,8 +227,10 @@ export default function DownloadResult({ result }) {
 
       <div className="space-y-3">
         <button
-          onClick={() => handleDownload(`fesnuksave-web_${code()}_hd-video`)}
-          disabled={videoLoading}
+          onClick={() =>
+            handleDownload(`fesnuksave-web_${code()}_hd-video.mp4`)
+          }
+          disabled={videoLoading || audioLoading}
           className="w-full py-3.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-700 text-white font-bold rounded-xl shadow-lg hover:from-purple-700 hover:to-indigo-800 transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
         >
           <div className="flex items-center justify-center space-x-2">
@@ -151,7 +255,7 @@ export default function DownloadResult({ result }) {
                     d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                <span>Downloading MP4...</span>
+                <span>Downloading Video...</span>
               </>
             ) : (
               <>
@@ -174,7 +278,7 @@ export default function DownloadResult({ result }) {
 
         <button
           onClick={handleMp3Download}
-          disabled={audioLoading}
+          disabled={videoLoading || audioLoading}
           className="w-full py-3.5 px-4 bg-gradient-to-r from-green-600 to-emerald-700 text-white font-bold rounded-xl shadow-lg hover:from-green-700 hover:to-emerald-800 transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
         >
           <div className="flex items-center justify-center space-x-2">
@@ -210,7 +314,7 @@ export default function DownloadResult({ result }) {
                 >
                   <path
                     fillRule="evenodd"
-                    d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793L4.617 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.617l3.766-3.793a1 1 0 011.617.793zm7.447 2.17a1 1 0 011.414 0A9.06 9.06 0 0121 12a9.06 9.06 0 01-2.756 6.754 1 1 0 11-1.414-1.414A7.06 7.06 0 0019 12a7.06 7.06 0 00-2.17-5.16 1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A4.532 4.532 0 0116 12a4.532 4.532 0 01-.583 2.926 1 1 0 11-1.415-1.414A2.532 2.532 0 0014.5 12a2.532 2.532 0 00-.498-1.512 1 1 0 010-1.414z"
+                    d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.617.793l-4.146-3.317a1 1 0 00-.632-.226H2a1 1 0 01-1-1V7.25a1 1 0 011-1h1.605a1 1 0 00.632-.226l4.146-3.317zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"
                     clipRule="evenodd"
                   />
                 </svg>
