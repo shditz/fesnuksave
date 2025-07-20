@@ -4,6 +4,7 @@ export default function DownloadResult({ result }) {
   const [videoError, setVideoError] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
   const [audioLoading, setAudioLoading] = useState(false);
+  const [conversionProgress, setConversionProgress] = useState(0);
 
   const code = () => {
     const chars =
@@ -39,26 +40,26 @@ export default function DownloadResult({ result }) {
     }
   };
 
-  const extractAudioToMp3 = async (videoBlob) => {
+  const extractAudioFromVideo = async (videoBlob) => {
     return new Promise((resolve, reject) => {
       const video = document.createElement("video");
       video.src = URL.createObjectURL(videoBlob);
-      video.crossOrigin = "anonymous";
 
       video.addEventListener("loadedmetadata", async () => {
         try {
           const audioContext = new (window.AudioContext ||
             window.webkitAudioContext)();
+
+          // Decode video to get audio buffer
+          const arrayBuffer = await videoBlob.arrayBuffer();
+
+          // For video files, we need to extract audio differently
+          // Using MediaRecorder to capture audio stream
           const source = audioContext.createMediaElementSource(video);
           const destination = audioContext.createMediaStreamDestination();
-
           source.connect(destination);
-          source.connect(audioContext.destination);
 
-          const mediaRecorder = new MediaRecorder(destination.stream, {
-            mimeType: "audio/webm;codecs=opus",
-          });
-
+          const mediaRecorder = new MediaRecorder(destination.stream);
           const audioChunks = [];
 
           mediaRecorder.ondataavailable = (event) => {
@@ -69,13 +70,15 @@ export default function DownloadResult({ result }) {
 
           mediaRecorder.onstop = async () => {
             const webmBlob = new Blob(audioChunks, { type: "audio/webm" });
+            const webmBuffer = await webmBlob.arrayBuffer();
 
             try {
-              const mp3Blob = await convertWebmToMp3(webmBlob);
-              resolve(mp3Blob);
-            } catch (conversionError) {
-              console.warn("MP3 conversion failed, falling back to WebM");
-              resolve(webmBlob);
+              const audioBuffer = await audioContext.decodeAudioData(
+                webmBuffer
+              );
+              resolve(audioBuffer);
+            } catch (decodeError) {
+              reject(new Error("Gagal decode audio dari video"));
             }
 
             audioContext.close();
@@ -83,8 +86,7 @@ export default function DownloadResult({ result }) {
           };
 
           mediaRecorder.start();
-
-          await video.play();
+          video.play();
 
           video.addEventListener("ended", () => {
             mediaRecorder.stop();
@@ -94,67 +96,53 @@ export default function DownloadResult({ result }) {
         }
       });
 
-      video.addEventListener("error", (error) => {
+      video.addEventListener("error", () => {
         reject(new Error("Gagal memuat video untuk ekstraksi audio"));
       });
     });
   };
 
-  const convertWebmToMp3 = async (webmBlob) => {
+  const convertAudioBufferToMp3 = async (audioBuffer) => {
     return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src =
-        "https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js";
-      script.onload = async () => {
-        try {
-          const arrayBuffer = await webmBlob.arrayBuffer();
-          const audioContext = new (window.AudioContext ||
-            window.webkitAudioContext)();
-          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      const worker = new Worker("/mp3-worker.js");
 
-          const samples = audioBuffer.getChannelData(0);
-          const sampleRate = audioBuffer.sampleRate;
+      // Get audio data from first channel
+      const audioData = audioBuffer.getChannelData(0);
+      const sampleRate = audioBuffer.sampleRate;
 
-          const int16Samples = new Int16Array(samples.length);
-          for (let i = 0; i < samples.length; i++) {
-            int16Samples[i] = Math.max(-1, Math.min(1, samples[i])) * 0x7fff;
-          }
+      worker.postMessage({
+        audioBuffer: audioData,
+        sampleRate: sampleRate,
+      });
 
-          const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
-          const mp3Data = [];
+      worker.onmessage = (e) => {
+        const { type, mp3Data, progress, message } = e.data;
 
-          const sampleBlockSize = 1152;
-          for (let i = 0; i < int16Samples.length; i += sampleBlockSize) {
-            const sampleChunk = int16Samples.subarray(i, i + sampleBlockSize);
-            const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
-            if (mp3buf.length > 0) {
-              mp3Data.push(mp3buf);
-            }
-          }
-
-          const mp3buf = mp3encoder.flush();
-          if (mp3buf.length > 0) {
-            mp3Data.push(mp3buf);
-          }
-
+        if (type === "progress") {
+          setConversionProgress(progress);
+        } else if (type === "complete") {
           const mp3Blob = new Blob(mp3Data, { type: "audio/mp3" });
+          worker.terminate();
           resolve(mp3Blob);
-        } catch (error) {
-          reject(error);
+        } else if (type === "error") {
+          worker.terminate();
+          reject(new Error(message));
         }
       };
 
-      script.onerror = () => {
-        reject(new Error("Gagal memuat library MP3 encoder"));
+      worker.onerror = (error) => {
+        worker.terminate();
+        reject(new Error("Web Worker error: " + error.message));
       };
-
-      document.head.appendChild(script);
     });
   };
 
   const handleMp3Download = async () => {
     setAudioLoading(true);
+    setConversionProgress(0);
+
     try {
+      // Download video
       const response = await fetch(
         `/api/proxy?url=${encodeURIComponent(result.url)}`
       );
@@ -162,23 +150,27 @@ export default function DownloadResult({ result }) {
 
       const videoBlob = await response.blob();
 
-      const audioBlob = await extractAudioToMp3(videoBlob);
+      // Extract audio buffer from video
+      const audioBuffer = await extractAudioFromVideo(videoBlob);
 
-      const fileExtension = audioBlob.type.includes("mp3") ? "mp3" : "webm";
+      // Convert to MP3 using Web Worker
+      const mp3Blob = await convertAudioBufferToMp3(audioBuffer);
 
-      const url = URL.createObjectURL(audioBlob);
+      // Download the MP3 file
+      const url = URL.createObjectURL(mp3Blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `fesnuksave-audio_${code()}.${fileExtension}`;
+      a.download = `fesnuksave-audio_${code()}.mp3`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Audio extraction failed:", error);
-      alert(`Gagal mengekstrak audio: ${error.message}`);
+      console.error("MP3 conversion failed:", error);
+      alert(`Gagal mengkonversi ke MP3: ${error.message}`);
     } finally {
       setAudioLoading(false);
+      setConversionProgress(0);
     }
   };
 
