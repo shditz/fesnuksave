@@ -91,7 +91,7 @@ export default function Home() {
                     id="url"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    placeholder="Tempel URL video Facebook"
+                    placeholder="Paste Facebook video URL"
                     required
                     className="w-full pl-10 pr-10 py-3 border border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
                   />
@@ -99,7 +99,7 @@ export default function Home() {
                     type="button"
                     onClick={handlePaste}
                     className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-purple-600 transition-colors"
-                    title="Tempel dari clipboard"
+                    title="Paste from clipboard"
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -149,7 +149,7 @@ export default function Home() {
                           d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                         ></path>
                       </svg>
-                      Memproses...
+                      Processing...
                     </div>
                   ) : (
                     <>
