@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 
 const FacebookGuide = () => {
   return (
@@ -14,10 +15,18 @@ const FacebookGuide = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
-            <img
-              src="/images/fbguide/step1.png"
-              className="relative mb-6 rounded"
-            />
+            <div
+              className="relative mb-6 rounded overflow-hidden"
+              style={{ height: "200px" }}
+            >
+              <Image
+                src="/images/fbguide/step1.png"
+                alt="Step 1: Copy Facebook video URL"
+                layout="fill"
+                objectFit="contain"
+                quality={100}
+              />
+            </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">
               Step 1: Copy the Video URL
             </h3>
@@ -28,10 +37,18 @@ const FacebookGuide = () => {
           </div>
 
           <div>
-            <img
-              src="/images/fbguide/step2.png"
-              className="relative mb-6 rounded"
-            />
+            <div
+              className="relative mb-6 rounded overflow-hidden"
+              style={{ height: "200px" }}
+            >
+              <Image
+                src="/images/fbguide/step2.png"
+                alt="Step 2: Paste URL in FesnukSave"
+                layout="fill"
+                objectFit="contain"
+                quality={100}
+              />
+            </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">
               Step 2: Paste the URL in FesnukSave
             </h3>
@@ -44,10 +61,18 @@ const FacebookGuide = () => {
           </div>
 
           <div>
-            <img
-              src="/images/fbguide/step3.png"
-              className="relative mb-6 rounded"
-            />
+            <div
+              className="relative mb-6 rounded overflow-hidden"
+              style={{ height: "200px" }}
+            >
+              <Image
+                src="/images/fbguide/step3.png"
+                alt="Step 3: Select quality and download"
+                layout="fill"
+                objectFit="contain"
+                quality={100}
+              />
+            </div>
             <h3 className="text-xl font-semibold text-gray-800 mb-2">
               Step 3: Select Video Quality and Download
             </h3>
