@@ -1,5 +1,3 @@
-//app/components/result/fbresult.js
-
 import { useState } from "react";
 
 export default function DownloadResult({ result }) {
@@ -140,33 +138,31 @@ export default function DownloadResult({ result }) {
     setConversionProgress(0);
 
     try {
-      const response = await fetch("/api/mp3", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: result.url }),
-      });
+      const response = await fetch(
+        `/api/proxy?url=${encodeURIComponent(result.url)}`
+      );
+      if (!response.ok) throw new Error("Gagal mengunduh video");
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error);
-      }
+      const videoBlob = await response.blob();
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const audioBuffer = await extractAudioFromVideo(videoBlob);
 
+      const mp3Blob = await convertAudioBufferToMp3(audioBuffer);
+
+      const url = URL.createObjectURL(mp3Blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `FesnukSave-Ditz_${code()}.mp3`;
+      a.download = `FesnukSave-Ditz_${code()}_MP3convert`;
       document.body.appendChild(a);
       a.click();
-
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("MP3 conversion failed:", error);
-      alert(`Gagal mengkonversi: ${error.message}`);
+      alert(`Gagal mengkonversi ke MP3: ${error.message}`);
     } finally {
       setAudioLoading(false);
+      setConversionProgress(0);
     }
   };
 
