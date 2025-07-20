@@ -65,7 +65,8 @@ const WhyUseFesnukSave = () => {
             <h3 className="text-xl font-semibold text-gray-800 mb-2">Easy</h3>
             <p className="text-gray-600">
               Facebook video downloader for any device (phone, PC, or tablet),
-              and any OS (Android, iOS). You don't need to install any software.
+              and any OS (Android, iOS). You don&apos;t need to install any
+              software.
             </p>
           </div>
 
