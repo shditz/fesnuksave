@@ -78,24 +78,10 @@ export default function Footer() {
         </div>
 
         <div className="mt-6 pt-6 border-t border-purple-100">
-          <div className="flex flex-col md:flex-row justify-between items-center">
+          <div className="flex flex-col md:flex-row justify-center items-center">
             <p className="text-sm text-gray-500 mb-4 md:mb-0">
               &copy; {new Date().getFullYear()} FesnukSave. All rights reserved.
             </p>
-            <div className="flex space-x-6">
-              <Link
-                href="/privacy"
-                className="text-sm text-gray-500 hover:text-purple-900"
-              >
-                Privacy Policy
-              </Link>
-              <Link
-                href="/terms"
-                className="text-sm text-gray-500 hover:text-purple-900"
-              >
-                Terms of Service
-              </Link>
-            </div>
           </div>
         </div>
       </div>
