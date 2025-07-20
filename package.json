@@ -9,15 +9,24 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "axios": "^1.10.0",
+    "cheerio": "^1.1.0",
+    "next": "15.4.2",
+    "node-fetch": "^3.3.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.4.2"
+    "react-icons": "^5.5.0",
+    "youtube-dl-exec": "^3.0.22",
+    "ytdl-core": "^4.11.5"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "15.4.2",
-    "@eslint/eslintrc": "^3"
+    "tailwindcss": "^4"
   }
 }
