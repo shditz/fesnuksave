@@ -70,7 +70,7 @@ export default function Home() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <div className="flex items-center mb-2"></div>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <svg
@@ -120,7 +120,7 @@ export default function Home() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className={`flex-shrink-0 py-3 px-4 rounded-xl text-white font-bold shadow-lg flex items-center ${
+                  className={`sm:flex-shrink-0 py-3 px-4 rounded-xl text-white font-bold shadow-lg flex items-center justify-center ${
                     loading
                       ? "bg-gray-400"
                       : "bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800"
