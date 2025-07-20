@@ -50,11 +50,8 @@ export default function DownloadResult({ result }) {
           const audioContext = new (window.AudioContext ||
             window.webkitAudioContext)();
 
-          // Decode video to get audio buffer
           const arrayBuffer = await videoBlob.arrayBuffer();
 
-          // For video files, we need to extract audio differently
-          // Using MediaRecorder to capture audio stream
           const source = audioContext.createMediaElementSource(video);
           const destination = audioContext.createMediaStreamDestination();
           source.connect(destination);
@@ -106,7 +103,6 @@ export default function DownloadResult({ result }) {
     return new Promise((resolve, reject) => {
       const worker = new Worker("/mp3-worker.js");
 
-      // Get audio data from first channel
       const audioData = audioBuffer.getChannelData(0);
       const sampleRate = audioBuffer.sampleRate;
 
@@ -142,7 +138,6 @@ export default function DownloadResult({ result }) {
     setConversionProgress(0);
 
     try {
-      // Download video
       const response = await fetch(
         `/api/proxy?url=${encodeURIComponent(result.url)}`
       );
@@ -150,13 +145,10 @@ export default function DownloadResult({ result }) {
 
       const videoBlob = await response.blob();
 
-      // Extract audio buffer from video
       const audioBuffer = await extractAudioFromVideo(videoBlob);
 
-      // Convert to MP3 using Web Worker
       const mp3Blob = await convertAudioBufferToMp3(audioBuffer);
 
-      // Download the MP3 file
       const url = URL.createObjectURL(mp3Blob);
       const a = document.createElement("a");
       a.href = url;
