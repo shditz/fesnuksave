@@ -1,5 +1,3 @@
-//app/api/proxy/route.js
-
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const mediaUrl = searchParams.get("url");
